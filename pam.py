@@ -41,16 +41,16 @@ def analyse_sounding(d, index):
     dewT = T - dew_dep
 
     full_p = np.linspace(p[0], 100, int(p[0]) - 100 + 1)
-    interp_T = interp1d(p, T)
-    interp_dewT = interp1d(p, dewT)
+    interp_T = interp1d(p, T, kind='linear')
+    interp_dewT = interp1d(p, dewT, kind='linear')
     full_T = interp_T(full_p) - 273.15
     full_dewT = interp_dewT(full_p) - 273.15
 
     K = 287/1004
     p0 = full_p[0]
-    Tnext = full_T[0]
-    theta = (Tnext + 273.15) * (p0 / 1000)**-K
-    ascentT = [Tnext]
+    Tparcel = full_T[0]
+    theta = (Tparcel + 273.15) * (p0 / 1000)**-K
+    ascentT = [Tparcel]
 
     dewT0 = full_dewT[0]
     rvs0 = pressure_temp_to_mixing_ratio(p0, dewT0)
@@ -64,9 +64,10 @@ def analyse_sounding(d, index):
     max_CIN = 0
     max_CAPE = 0
     for i in range(1, len(full_p) - 1):
+        Tnext = (theta * (full_p[i] / 1000) ** K) - 273.15
         rvs = pressure_temp_to_mixing_ratio(full_p[i], Tnext)
         if rvs > rvs0:
-            Tnext = (theta * (full_p[i] / 1000) ** K) - 273.15
+            Tparcel = Tnext
         else:
             if not LCL:
                 LCL = full_p[i]
@@ -74,33 +75,37 @@ def analyse_sounding(d, index):
                 print('LCL={}'.format(LCL))
             dp = full_p[i] - full_p[i - 1]
             minT = -1000
-            _, dT = tephi.isopleths._wet_adiabat_gradient(minT, full_p[i - 1], Tnext, dp)
-            Tnext += dT
-            theta_parcel = (Tnext + 273.15) * (full_p[i] / 1000)**-K
-            theta_env = (full_T[i] + 273.15) * (full_p[i] / 1000)**-K
+            _, dT = tephi.isopleths._wet_adiabat_gradient(minT, 
+                                                          full_p[i - 1], 
+                                                          Tparcel, dp)
+            Tparcel += dT
 
-            curr_energy += 287. * (full_T[i] - Tnext) * (full_p[i] - full_p[i - 1]) / full_p[i]
-            # print(full_p[i], curr_energy)
-            # raw_input()
+        Tdiff = Tparcel - full_T[i]
+        delta_p = full_p[i - 1] - full_p[i]
+        curr_energy += 287. * Tdiff * delta_p / ((full_p[i] + full_p[i - 1])/2)
 
-            if theta_parcel < theta_env:
-                if buoyancy != -1:
-                    # print('New -ve level reached: p={}'.format(full_p[i]))
-                    buoyancy = -1
-                    energies.append((curr_energy, 'CAPE'))
-                    if curr_energy > max_CAPE:
-                        max_CAPE = curr_energy
-                    curr_energy = 0
-            elif theta_parcel > theta_env:
-                if buoyancy != 1:
-                    # print('New +ve level reached: p={}'.format(full_p[i]))
-                    buoyancy = 1
-                    energies.append((curr_energy, 'CIN'))
-                    if abs(curr_energy) > abs(max_CIN):
-                        max_CIN = curr_energy
-                    curr_energy = 0
+        if full_T[i] > Tparcel:
+            if buoyancy != -1:
+                print('New -ve level reached: p={}'.format(full_p[i]))
+                print('Tparcel={}'.format(Tparcel))
+                print('Tenv={}'.format(full_T[i]))
+                buoyancy = -1
+                energies.append((full_p[i], curr_energy, 'CAPE'))
+                if curr_energy > max_CAPE:
+                    max_CAPE = curr_energy
+                curr_energy = 0
+        else:
+            if buoyancy != 1:
+                print('New +ve level reached: p={}'.format(full_p[i]))
+                print('Tparcel={}'.format(Tparcel))
+                print('Tenv={}'.format(full_T[i]))
+                buoyancy = 1
+                energies.append((full_p[i], curr_energy, 'CIN'))
+                if abs(curr_energy) > abs(max_CIN):
+                    max_CIN = curr_energy
+                curr_energy = 0
 
-        ascentT.append(Tnext)
+        ascentT.append(Tparcel)
 
     res['index'] = index
     res['p'] = p
@@ -108,6 +113,8 @@ def analyse_sounding(d, index):
     res['dewT'] = dewT
 
     res['full_p'] = full_p
+    res['full_T'] = full_T
+    res['full_dewT'] = full_dewT
     res['ascentT'] = ascentT
     res['LCL'] = LCL
     res['energies'] = energies
@@ -129,6 +136,9 @@ def plot_tpg(res):
 
     tpg.plot(zip(res['p'], res['T'] - 273.15), color='k', linestyle='-')
     tpg.plot(zip(res['p'], res['dewT'] - 273.15), color='k', linestyle='--')
+
+    tpg.plot(zip(res['full_p'], res['full_T']), color='r', linestyle='-')
+    tpg.plot(zip(res['full_p'], res['full_dewT']), color='r', linestyle='--')
 
     tpg.plot(zip(res['full_p'][1:], res['ascentT']), color='b')
 
@@ -165,4 +175,4 @@ if __name__ == '__main__':
     #interesting_indices = [17, 165, 169, 224, 238, 261, 263, 301, 309, 311, 325, 327, 330, 331, 333, 334, 338, 383, 389, 398, 507, 515, 526, 530, 608, 626, 632, 654, 682, 684, 685, 686, 693, 694, 698, 700, 702, 705, 706, 711, 741, 771, 933, 943, 945, 946, 947, 978, 979, 1002]
     # analyse_esrl_noaa_data('data/raob_soundings27403.cdf', interesting_indices)
     #d, all_res = analyse_esrl_noaa_data('data/raob_soundings27403.cdf')
-    d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf')
+    d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf', [3215, 6208])
