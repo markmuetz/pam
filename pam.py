@@ -2,6 +2,7 @@ from __future__ import division
 import datetime as dt
 import os.path
 import math
+import cPickle
 
 import netCDF4 as nc
 import pylab as plt
@@ -11,6 +12,8 @@ from scipy.interpolate import interp1d
 import tephi
 from tephi._constants import CONST_K, CONST_KELVIN, CONST_L, CONST_MA, CONST_RV
 
+# Appeared interesting at first pass, worth checking out further.
+INTERESTING_INDICES = [17, 165, 169, 224, 238, 261, 263, 301, 309, 311, 325, 327, 330, 331, 333, 334, 338, 383, 389, 398, 507, 515, 526, 530, 608, 626, 632, 654, 682, 684, 685, 686, 693, 694, 698, 700, 702, 705, 706, 711, 741, 771, 933, 943, 945, 946, 947, 978, 979, 1002]
 
 def google_maps_link(lat, lon, zoom='8'):
     return 'http://maps.google.com/maps?q={lat},{lon}&z={zoom}'.format(lat=lat,
@@ -224,10 +227,13 @@ def analyse_esrl_noaa_data(filename, indices=None, plot=False):
     return d, all_res
 
 
+def save_results(results, filename):
+    cPickle.dump(results, open(filename, 'w'))
+
+def load_results(filename):
+    return cPickle.load(open(filename, 'r'))
+
 if __name__ == '__main__':
     plt.ion()
-    #interesting_indices = [17, 165, 169, 224, 238, 261, 263, 301, 309, 311, 325, 327, 330, 331, 333, 334, 338, 383, 389, 398, 507, 515, 526, 530, 608, 626, 632, 654, 682, 684, 685, 686, 693, 694, 698, 700, 702, 705, 706, 711, 741, 771, 933, 943, 945, 946, 947, 978, 979, 1002]
-    # analyse_esrl_noaa_data('data/raob_soundings27403.cdf', interesting_indices)
-    #d, all_res = analyse_esrl_noaa_data('data/raob_soundings27403.cdf')
-    #d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf', [3215, 6208])
-    d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf')
+    #d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf')
+    #save_results(all_res, 'data/results/raob_soundings25458-results.pkl')
