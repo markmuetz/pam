@@ -15,5 +15,5 @@ st_env/
 stormtracks.egg-info/
 wheelhouse/
 MANIFEST
-data/raob_soundings25458.cdf
+data/raob_soundings_2015*.cdf
 data/results/*

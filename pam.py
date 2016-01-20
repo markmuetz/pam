@@ -177,6 +177,15 @@ def analyse_sounding(d, index):
     return res
 
 
+def plot_scatter(results, xvar='lat', yvar='max_CAPE'):
+    plt.xlabel(xvar)
+    plt.ylabel(yvar)
+
+    for res in results:
+        if res['max_CAPE'] != 0:
+            plt.scatter(res[xvar], res[yvar])
+
+
 def plot_results(results):
     for res in results:
         plot_tpg(res)
@@ -230,10 +239,30 @@ def analyse_esrl_noaa_data(filename, indices=None, plot=False):
 def save_results(results, filename):
     cPickle.dump(results, open(filename, 'w'))
 
+
 def load_results(filename):
     return cPickle.load(open(filename, 'r'))
 
+
+def save_june_soundings():
+    res_for_month = []
+    datasets = []
+    for wk in range(1, 6):
+        d, all_res = analyse_esrl_noaa_data('data/raob_soundings_2015-06-wk{}.cdf'.format(wk))
+        save_results(all_res, 'data/results/raob_soundings_2015-06-wk{}-results.pkl'.format(wk))
+        datasets.append(d)
+        res_for_month.extend(all_res.values())
+    return datasets, res_for_month
+
+
+def load_june_soundings():
+    res_for_month = []
+    for wk in range(1, 6):
+        all_res = load_results('data/results/raob_soundings_2015-06-wk{}-results.pkl'.format(wk))
+        res_for_month.extend(all_res.values())
+        print(len(all_res))
+    return res_for_month
+
+
 if __name__ == '__main__':
     plt.ion()
-    #d, all_res = analyse_esrl_noaa_data('data/raob_soundings25458.cdf')
-    #save_results(all_res, 'data/results/raob_soundings25458-results.pkl')
