@@ -34,6 +34,9 @@ def interp_p(T, p, full_p):
     curr_sig_level = 1
     finished = False
 
+    # Loop over values in full_p, working out which value in the p array 
+    # (sparser) that this corresponds to. For each value in full_p, work out its
+    # full_T value.
     for i in range(1, len(full_p)):
         pp = full_p[i]
         while pp <= p[curr_sig_level]:
@@ -44,6 +47,8 @@ def interp_p(T, p, full_p):
         if finished:
             break
 
+        # plot a straight line in T, theta coords, then translate this
+        # into the pressure levels in full_p using theta formula.
         T0 = T[curr_sig_level - 1]
         T1 = T[curr_sig_level]
         if T1 == T0:
@@ -189,11 +194,14 @@ def plot_scatter(results, xvar='lat', yvar='max_CAPE'):
 def plot_results(results):
     for res in results:
         plot_tpg(res)
-        print(res['max_CAPE'])
-        print(res['energies'])
+        plt.title('{}: {:.2f}, {:.2f}'.format(res['time'], res['lat'], res['lon']))
+        print('{}: {:.2f}, {:.2f}'.format(res['time'], res['lat'], res['lon']))
         print(res['url'])
+        print('LCL: {}'.format(res['LCL']))
+        print('Max CAPE: {}'.format(res['max_CAPE']))
+        print(res['energies'])
         plt.pause(0.01)
-        ri = raw_input()
+        ri = raw_input('q to break: ')
         if ri == 'q':
             break
 
@@ -244,10 +252,10 @@ def load_results(filename):
     return cPickle.load(open(filename, 'r'))
 
 
-def save_june_soundings():
+def save_june_soundings(wks=range(1, 6)):
     res_for_month = []
     datasets = []
-    for wk in range(1, 6):
+    for wk in wks:
         d, all_res = analyse_esrl_noaa_data('data/raob_soundings_2015-06-wk{}.cdf'.format(wk))
         save_results(all_res, 'data/results/raob_soundings_2015-06-wk{}-results.pkl'.format(wk))
         datasets.append(d)
@@ -255,9 +263,9 @@ def save_june_soundings():
     return datasets, res_for_month
 
 
-def load_june_soundings():
+def load_june_soundings(wks=range(1, 6)):
     res_for_month = []
-    for wk in range(1, 6):
+    for wk in wks:
         all_res = load_results('data/results/raob_soundings_2015-06-wk{}-results.pkl'.format(wk))
         res_for_month.extend(all_res.values())
         print(len(all_res))
