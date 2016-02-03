@@ -1,0 +1,2 @@
+* Temperature kick
+* Entrainment/detrainment

@@ -63,66 +63,79 @@ def interp_p(T, p, full_p):
     return full_T
 
 
-def calc_energies(full_p, full_T, full_dewT):
-    p0 = full_p[0]
+def calc_energies(full_p, full_T, full_dewT, rvs_ent_ratio=0.9, T_ent_ratio=0.99):
+    # print('p0={},rvs0={}'.format(p0, rvs0))
     Tparcel = full_T[0]
-    theta = (Tparcel + 273.15) * (p0 / 1000)**-CONST_K
-    ascentT = [Tparcel]
+    ascentT = {'raw': [Tparcel], 'ent': [Tparcel]}
+    LCL = {'raw': None, 'ent': None}
+    energies = {'raw': [], 'ent': []}
+    max_CIN = {'raw': 0, 'ent': 0}
+    max_CAPE = {'raw': 0, 'ent': 0}
 
+    p0 = full_p[0]
+    theta = (Tparcel + 273.15) * (p0 / 1000)**-CONST_K
     dewT0 = full_dewT[0]
     rvs0 = pressure_temp_to_mixing_ratio(p0, dewT0)
 
-    # print('p0={},rvs0={}'.format(p0, rvs0))
-    LCL = None
-    buoyancy = -1
-    energies = []
-    curr_energy = 0
+    for mode in ['raw', 'ent']:
+        Tparcel = full_T[0]
+        buoyancy = -1
+        curr_energy = 0
 
-    max_CIN = 0
-    max_CAPE = 0
-    for i in range(1, len(full_p) - 1):
-        Tnext = (theta * (full_p[i] / 1000) ** CONST_K) - 273.15
-        rvs = pressure_temp_to_mixing_ratio(full_p[i], Tnext)
-        if rvs > rvs0:
-            Tparcel = Tnext
-        else:
-            if not LCL:
-                LCL = full_p[i]
-                # print('p={},rvs={}'.format(full_p[i], rvs))
-                #print('LCL={}'.format(LCL))
-            dp = full_p[i] - full_p[i - 1]
-            minT = -1000
-            _, dT = tephi.isopleths._wet_adiabat_gradient(minT, 
-                                                          full_p[i - 1], 
-                                                          Tparcel, dp)
-            Tparcel += dT
+        for i in range(1, len(full_p) - 1):
+            # Calc the next temperature.
+            Tnext = (theta * (full_p[i] / 1000) ** CONST_K) - 273.15
+            # Check mixing ratio at this T.
+            rvs = pressure_temp_to_mixing_ratio(full_p[i], Tnext)
 
-        Tdiff = Tparcel - full_T[i]
-        delta_p = full_p[i - 1] - full_p[i]
-        curr_energy += 287. * Tdiff * delta_p / ((full_p[i] + full_p[i - 1])/2)
+            if mode == 'ent':
+                # Mix rvs with env air.
+                rvs_env = pressure_temp_to_mixing_ratio(full_p[i], full_dewT[i])
+                rvs = rvs_ent_ratio * (rvs - rvs_env) + rvs_env
 
-        if full_T[i] > Tparcel:
-            if buoyancy != -1:
-                #print('New -ve level reached: p={}'.format(full_p[i]))
-                #print('Tparcel={}'.format(Tparcel))
-                #print('Tenv={}'.format(full_T[i]))
-                buoyancy = -1
-                energies.append((full_p[i], curr_energy, 'CAPE'))
-                if curr_energy > max_CAPE:
-                    max_CAPE = curr_energy
-                curr_energy = 0
-        else:
-            if buoyancy != 1:
-                #print('New +ve level reached: p={}'.format(full_p[i]))
-                #print('Tparcel={}'.format(Tparcel))
-                #print('Tenv={}'.format(full_T[i]))
-                buoyancy = 1
-                energies.append((full_p[i], curr_energy, 'CIN'))
-                if abs(curr_energy) > abs(max_CIN):
-                    max_CIN = curr_energy
-                curr_energy = 0
+            if rvs > rvs0:
+                Tparcel = Tnext
+            else:
+                if not LCL[mode]:
+                    LCL[mode] = full_p[i]
+                    # print('p={},rvs={}'.format(full_p[i], rvs))
+                    #print('LCL={}'.format(LCL))
+                dp = full_p[i] - full_p[i - 1]
+                minT = -1000
+                _, dT = tephi.isopleths._wet_adiabat_gradient(minT, 
+                                                              full_p[i - 1], 
+                                                              Tparcel, dp)
+                Tparcel += dT
 
-        ascentT.append(Tparcel)
+            if mode == 'ent':
+                Tparcel = T_ent_ratio * (Tparcel - full_T[i]) + full_T[i]
+
+            Tdiff = Tparcel - full_T[i]
+            delta_p = full_p[i - 1] - full_p[i]
+            curr_energy += 287. * Tdiff * delta_p / ((full_p[i] + full_p[i - 1])/2)
+
+            if full_T[i] > Tparcel:
+                if buoyancy != -1:
+                    #print('New -ve level reached: p={}'.format(full_p[i]))
+                    #print('Tparcel={}'.format(Tparcel))
+                    #print('Tenv={}'.format(full_T[i]))
+                    buoyancy = -1
+                    energies[mode].append((full_p[i], curr_energy, 'CAPE'))
+                    if curr_energy > max_CAPE[mode]:
+                        max_CAPE[mode] = curr_energy
+                    curr_energy = 0
+            else:
+                if buoyancy != 1:
+                    #print('New +ve level reached: p={}'.format(full_p[i]))
+                    #print('Tparcel={}'.format(Tparcel))
+                    #print('Tenv={}'.format(full_T[i]))
+                    buoyancy = 1
+                    energies[mode].append((full_p[i], curr_energy, 'CIN'))
+                    if abs(curr_energy) > abs(max_CIN[mode]):
+                        max_CIN[mode] = curr_energy
+                    curr_energy = 0
+
+            ascentT[mode].append(Tparcel)
     return LCL, energies, max_CAPE, max_CIN, ascentT
 
 
@@ -205,7 +218,7 @@ def plot_results(results):
         if ri == 'q':
             break
 
-def plot_tpg(res):
+def plot_tpg(res, mode='raw'):
     plt.clf()
     #tpg = tephi.Tephigram()
     tpg = tephi.Tephigram(anchor=[(1000, -20), (20, -20)])
@@ -222,7 +235,7 @@ def plot_tpg(res):
     tpg.plot(zip(res['full_p'], res['full_T']), color='r', linestyle='-')
     tpg.plot(zip(res['full_p'], res['full_dewT']), color='r', linestyle='--')
 
-    tpg.plot(zip(res['full_p'][1:], res['ascentT']), color='b')
+    tpg.plot(zip(res['full_p'][1:], res['ascentT'][mode]), color='b')
 
 
 def analyse_esrl_noaa_data(filename, indices=None, plot=False):
