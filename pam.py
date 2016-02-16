@@ -63,7 +63,7 @@ def interp_p(T, p, full_p):
     return full_T
 
 
-def calc_energies(full_p, full_T, full_dewT, rvs_ent_ratio=0.9, T_ent_ratio=0.99):
+def calc_ascent(full_p, full_T, full_dewT, rvs_ent_ratio=0.999, T_ent_ratio=0.999):
     # print('p0={},rvs0={}'.format(p0, rvs0))
     Tparcel = full_T[0]
     ascentT = {'raw': [Tparcel], 'ent': [Tparcel]}
@@ -75,7 +75,7 @@ def calc_energies(full_p, full_T, full_dewT, rvs_ent_ratio=0.9, T_ent_ratio=0.99
     p0 = full_p[0]
     theta = (Tparcel + 273.15) * (p0 / 1000)**-CONST_K
     dewT0 = full_dewT[0]
-    rvs0 = pressure_temp_to_mixing_ratio(p0, dewT0)
+    rv_crit = pressure_temp_to_mixing_ratio(p0, dewT0)
 
     for mode in ['raw', 'ent']:
         Tparcel = full_T[0]
@@ -90,12 +90,15 @@ def calc_energies(full_p, full_T, full_dewT, rvs_ent_ratio=0.9, T_ent_ratio=0.99
 
             if mode == 'ent':
                 # Mix rvs with env air.
-                rvs_env = pressure_temp_to_mixing_ratio(full_p[i], full_dewT[i])
-                rvs = rvs_ent_ratio * (rvs - rvs_env) + rvs_env
+                rv_env = pressure_temp_to_mixing_ratio(full_p[i], full_dewT[i])
+                rv_crit = rvs_ent_ratio * (rv_crit - rv_env) + rv_env
 
-            if rvs > rvs0:
+            if rvs > rv_crit:
+                # Parcel is not saturated: theta const.
                 Tparcel = Tnext
             else:
+                # Parcel is saturated, calc Tparcel based on rising along 
+                # pseudomoist adiabat.
                 if not LCL[mode]:
                     LCL[mode] = full_p[i]
                     # print('p={},rvs={}'.format(full_p[i], rvs))
@@ -109,6 +112,7 @@ def calc_energies(full_p, full_T, full_dewT, rvs_ent_ratio=0.9, T_ent_ratio=0.99
 
             if mode == 'ent':
                 Tparcel = T_ent_ratio * (Tparcel - full_T[i]) + full_T[i]
+                theta = (Tparcel + 273.15) * (full_p[i] / 1000)**-CONST_K
 
             Tdiff = Tparcel - full_T[i]
             delta_p = full_p[i - 1] - full_p[i]
@@ -176,9 +180,9 @@ def analyse_sounding(d, index):
         full_T = interp_p(T, p, full_p) - 273.15
         full_dewT = interp_p(dewT, p, full_p) - 273.15
 
-    LCL, energies, max_CAPE, max_CIN, ascentT = calc_energies(full_p, 
-                                                              full_T, 
-                                                              full_dewT)
+    LCL, energies, max_CAPE, max_CIN, ascentT = calc_ascent(full_p, 
+                                                            full_T, 
+                                                            full_dewT)
     res['index'] = index
     res['p'] = p
     res['T'] = T
